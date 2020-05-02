@@ -39,9 +39,11 @@ public class PosRunnable implements Runnable {
                 Thread.sleep(this.delay);
             } catch (InterruptedException e) {
                 logger.error(e.getStackTrace());
+                this.producer.close();
                 throw new RuntimeException(e);
             }
         }
+        this.producer.close();
     }
 
     public void stop() {
