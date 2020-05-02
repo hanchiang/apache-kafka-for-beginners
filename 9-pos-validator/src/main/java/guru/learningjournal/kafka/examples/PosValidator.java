@@ -10,6 +10,7 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.logging.log4j.LogManager;
@@ -26,6 +27,35 @@ import java.util.Properties;
 public class PosValidator {
     private static final Logger logger = LogManager.getLogger();
 
+    public static void run(KafkaProducer producer, KafkaConsumer consumer) {
+        // Subscribe to topic
+        try {
+            consumer.subscribe(Arrays.asList(AppConfigs.sourceTopicNames));
+            // Poll messages from kafka and process them
+            while (true) {
+                ConsumerRecords<String, PosInvoice> records = consumer.poll(Duration.ofMillis(AppConfigs.pollTimeout));
+                for (ConsumerRecord<String, PosInvoice> record: records) {
+                    PosInvoice recordValue = record.value();
+                    // invalid record
+                    if (recordValue.getDeliveryType().equals("HOME-DELIVERY") &&
+                            recordValue.getDeliveryAddress().getContactNumber().equals("")) {
+                        producer.send(new ProducerRecord<>(AppConfigs.invalidTopicName, recordValue.getStoreID(), recordValue));
+                        logger.info("Invalid record: " + recordValue.getInvoiceNumber());
+                    } else {
+                        producer.send(new ProducerRecord<>(AppConfigs.validTopicName, recordValue.getStoreID(), recordValue));
+                        logger.info("Valid record: " + recordValue.getInvoiceNumber());
+                    }
+                }
+            }
+        } catch(WakeupException e) {
+            logger.error(e.getMessage());
+            throw new RuntimeException(e);
+        } finally {
+            producer.close();
+            consumer.close();
+        }
+    }
+
     public static void main(String[] args) {
         // Create consumer
         Properties consumerProps = new Properties();
@@ -40,9 +70,6 @@ public class PosValidator {
 
         KafkaConsumer<String, PosInvoice> consumer = new KafkaConsumer(consumerProps);
 
-        // Subscribe to topic
-        consumer.subscribe(Arrays.asList(AppConfigs.sourceTopicNames));
-
         // Create producer
         Properties producerProps = new Properties();
         producerProps.put(ProducerConfig.CLIENT_ID_CONFIG, AppConfigs.applicationID);
@@ -52,21 +79,12 @@ public class PosValidator {
 
         KafkaProducer<String, PosInvoice> producer = new KafkaProducer(producerProps);
 
-        // Poll messages from kafka and process them
-        while (true) {
-            ConsumerRecords<String, PosInvoice> records = consumer.poll(Duration.ofMillis(AppConfigs.pollTimeout));
-            for (ConsumerRecord<String, PosInvoice> record: records) {
-                PosInvoice recordValue = record.value();
-                // invalid record
-                if (recordValue.getDeliveryType().equals("HOME-DELIVERY") &&
-                        recordValue.getDeliveryAddress().getContactNumber().equals("")) {
-                    producer.send(new ProducerRecord<>(AppConfigs.invalidTopicName, recordValue.getStoreID(), recordValue));
-                    logger.info("Invalid record: " + recordValue.getInvoiceNumber());
-                } else {
-                    producer.send(new ProducerRecord<>(AppConfigs.validTopicName, recordValue.getStoreID(), recordValue));
-                    logger.info("Valid record: " + recordValue.getInvoiceNumber());
-                }
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                consumer.wakeup();
             }
-        }
+        });
+        run(producer, consumer);
     }
 }
