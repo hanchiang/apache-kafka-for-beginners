@@ -9,7 +9,7 @@ import org.apache.logging.log4j.Logger;
 
 public class PosRunnable implements Runnable {
     public static final Logger logger = LogManager.getLogger();
-    private static final int defaultDelay = 300;
+    private static final int defaultDelay = 200;
     private boolean shouldRun = true;
     private KafkaProducer producer;
     private String topicName;
