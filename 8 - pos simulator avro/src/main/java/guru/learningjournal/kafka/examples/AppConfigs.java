@@ -6,6 +6,6 @@ public class AppConfigs {
     public final static String schemaRegistryServers = "http://localhost:8081";
     public final static int numThreads = 3;
     public final static int produceDelay = 200;
-    public final static int defaultProduceDelay= 300;
+    public final static int defaultProduceDelay= 200;
     public final static String topicName = "pos";
 }

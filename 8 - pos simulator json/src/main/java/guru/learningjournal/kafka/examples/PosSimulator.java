@@ -11,6 +11,9 @@ import org.apache.logging.log4j.Logger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class PosSimulator {
     private static final Logger logger = LogManager.getLogger();
@@ -25,15 +28,14 @@ public class PosSimulator {
 
         // Create producer and threads
         KafkaProducer<String, PosInvoice> producer = new KafkaProducer(props);
-        Thread[] threads = new Thread[AppConfigs.numThreads];
+        ExecutorService executor = Executors.newFixedThreadPool(AppConfigs.numThreads);
         List<PosRunnable> runnableProducers = new ArrayList<>();
 
         for (int i = 0; i < AppConfigs.numThreads; i++) {
             logger.info("Starting thread " + i);
             PosRunnable runnableProducer = new PosRunnable(producer, AppConfigs.topicName, AppConfigs.delayBetweenMessage);
             runnableProducers.add(runnableProducer);
-            threads[i] = new Thread(runnableProducer);
-            threads[i].start();
+            executor.submit(runnableProducer);
         }
 
         Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -41,6 +43,15 @@ public class PosSimulator {
             public void run() {
                 for (PosRunnable runnableProducer : runnableProducers) {
                     runnableProducer.stop();
+                }
+                executor.shutdown();
+                logger.info("Closing executor");
+
+                try {
+                    executor.awaitTermination(2 * AppConfigs.delayBetweenMessage, TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    logger.error(e.getStackTrace());
+                    throw new RuntimeException(e);
                 }
             }
         });
