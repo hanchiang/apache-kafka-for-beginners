@@ -9,4 +9,6 @@ This project contains simple applications demonstrating the usage of the kafka p
 * [JDK 1.8](https://www.oracle.com/java/technologies/javase-jdk8-downloads.html) is installed
 * Kafka installation directory is set as `$KAFKA_HOME`
 * Kafka `bin` directory is added to `$PATH`
-* Log directory for zookeeper and kafka is set to `../tmp/<log-name>`
+* Log directory for zookeeper and kafka are set
+  * kafka: `../tmp/<log-name>` in `etc/kafka/server.properties`
+  * zookeeper: `../tmp/zookeeper` in `etc/kafka/zookeeper.properties`
